@@ -1,0 +1,30 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { appleTheme } from './theme/theme';
+import { Home } from './pages/Home';
+import { Donate } from './pages/Donate';
+import { Dashboard } from './pages/Dashboard';
+import { Header } from './components/common/Header';
+
+function App() {
+  return (
+    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID!}>
+      <ThemeProvider theme={appleTheme}>
+        <CssBaseline />
+        <Router>
+          <Header />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/donate" element={<Donate />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+          </Routes>
+        </Router>
+      </ThemeProvider>
+    </GoogleOAuthProvider>
+  );
+}
+
+export default App;

@@ -1,0 +1,208 @@
+import React, { useState, useMemo } from 'react';
+import { Box, Typography } from '@mui/material';
+import Select, { AsyncPaginate } from 'react-select-async-paginate';
+import { FixedSizeList as List } from 'react-window';
+import { charityAPI } from '../../services/api';
+
+interface Charity {
+  _id: string;
+  name: string;
+  registrationNumber: string;
+  verificationStatus: string;
+  trustScore: number;
+  description?: string;
+}
+
+interface CharitySelectorProps {
+  onSelect: (charity: Charity) => void;
+  selectedCharity?: Charity;
+}
+
+// Custom option component for virtualized rendering
+const CharityOption = ({ index, style, data }: any) => {
+  const option = data[index];
+  return (
+    <div style={style}>
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: '1px solid #f0f0f0',
+          cursor: 'pointer',
+          '&:hover': {
+            backgroundColor: '#f8f9fa',
+          },
+        }}
+        onClick={() => option.onSelect(option.charity)}
+      >
+        <Typography variant="subtitle1" fontWeight={600}>
+          {option.charity.name}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          EIN: {option.charity.registrationNumber} | Trust: {(option.charity.trustScore * 100).toFixed(1)}%
+        </Typography>
+        {option.charity.verificationStatus === 'verified' && (
+          <Typography variant="caption" color="success.main">
+            ✅ IRS Verified
+          </Typography>
+        )}
+      </Box>
+    </div>
+  );
+};
+
+export const CharitySelector: React.FC<CharitySelectorProps> = ({
+  onSelect,
+  selectedCharity,
+}) => {
+  const [inputValue, setInputValue] = useState('');
+
+  // Load charities with pagination
+  const loadOptions = async (search: string, loadedOptions: any, { page }: any) => {
+    try {
+      const response = await charityAPI.searchCharities(search, page, 20);
+      
+      if (response.success) {
+        const options = response.data.map((charity: Charity) => ({
+          value: charity._id,
+          label: charity.name,
+          charity,
+        }));
+
+        return {
+          options,
+          hasMore: response.pagination?.hasMore || false,
+          additional: {
+            page: page + 1,
+          },
+        };
+      }
+      
+      return {
+        options: [],
+        hasMore: false,
+      };
+    } catch (error) {
+      console.error('Failed to load charities:', error);
+      return {
+        options: [],
+        hasMore: false,
+      };
+    }
+  };
+
+  // Custom menu list with virtualization
+  const MenuList = (props: any) => {
+    const { options, children, maxHeight, getValue } = props;
+    const [value] = getValue();
+    const initialOffset = options.indexOf(value) * 60;
+
+    if (!children.length) {
+      return (
+        <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+          No charities found. Try a different search term.
+        </Box>
+      );
+    }
+
+    return (
+      <List
+        height={Math.min(maxHeight, 300)}
+        itemCount={children.length}
+        itemSize={60}
+        initialScrollOffset={initialOffset}
+        itemData={children.map((child: any) => ({
+          ...child.props,
+          onSelect,
+        }))}
+      >
+        {CharityOption}
+      </List>
+    );
+  };
+
+  const customStyles = {
+    control: (provided: any) => ({
+      ...provided,
+      borderRadius: 12,
+      border: '2px solid #E5E5EA',
+      boxShadow: 'none',
+      padding: '8px',
+      '&:hover': {
+        border: '2px solid #007AFF',
+      },
+    }),
+    placeholder: (provided: any) => ({
+      ...provided,
+      color: '#8E8E93',
+      fontSize: '16px',
+    }),
+    input: (provided: any) => ({
+      ...provided,
+      fontSize: '16px',
+    }),
+  };
+
+  return (
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+        Select a Charity
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Search from over 559,000 IRS-verified nonprofits
+      </Typography>
+      
+      <AsyncPaginate
+        value={selectedCharity ? {
+          value: selectedCharity._id,
+          label: selectedCharity.name,
+          charity: selectedCharity,
+        } : null}
+        loadOptions={loadOptions}
+        onChange={(option: any) => {
+          if (option?.charity) {
+            onSelect(option.charity);
+          }
+        }}
+        placeholder="Type to search for charities..."
+        isClearable
+        isSearchable
+        cacheUniqs={[inputValue]}
+        additional={{
+          page: 1,
+        }}
+        components={{ MenuList }}
+        styles={customStyles}
+        debounceTimeout={300}
+        noOptionsMessage={() => "Start typing to search charities..."}
+        loadingMessage={() => "Loading charities..."}
+      />
+      
+      {selectedCharity && (
+        <Box
+          sx={{
+            mt: 2,
+            p: 3,
+            border: '2px solid #34C759',
+            borderRadius: 2,
+            backgroundColor: '#F0FFF4',
+          }}
+        >
+          <Typography variant="h6" color="success.dark">
+            ✅ {selectedCharity.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            EIN: {selectedCharity.registrationNumber}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Trust Score: {(selectedCharity.trustScore * 100).toFixed(1)}%
+          </Typography>
+          {selectedCharity.description && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              {selectedCharity.description}
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+};
