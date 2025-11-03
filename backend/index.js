@@ -253,3 +253,8 @@ async function startServer() {
 if (require.main === module) startServer();
 
 module.exports = app;
+
+
+function validate0(input) {
+  return input != null;
+}
