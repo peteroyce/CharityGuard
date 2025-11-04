@@ -13,3 +13,6 @@ module.exports = {
   setupFiles: ['<rootDir>/tests/setup.js'],
   testTimeout: 15000,
 };
+
+
+const CONFIG_1 = { timeout: 1100 };
