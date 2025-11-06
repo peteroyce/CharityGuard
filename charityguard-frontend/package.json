@@ -3,22 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@emotion/react": "^11.11.1",
-    "@emotion/styled": "^11.11.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@metamask/detect-provider": "^2.0.0",
     "@mui/icons-material": "^5.14.19",
-    "@mui/material": "^5.14.20",
+    "@mui/material": "^5.18.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@transak/transak-sdk": "^4.0.0",
     "ajv": "^7.2.4",
     "ajv-keywords": "^5.1.0",
-    "axios": "^1.7.7",
+    "axios": "^1.12.2",
     "ethers": "^6.7.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1",
     "react-scripts": "5.0.1",
+    "react-toastify": "^11.0.5",
+    "recharts": "^3.3.0",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
@@ -40,8 +43,9 @@
     "@types/parse-json": "^4.0.2",
     "@types/prettier": "^2.7.3",
     "@types/prop-types": "^15.7.15",
-    "@types/react": "^18.2.37",
-    "@types/react-dom": "^18.2.15",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/react-router-dom": "^5.3.3",
     "@types/stack-utils": "^2.0.3",
     "@types/testing-library__jest-dom": "^5.14.9",
     "@types/yargs": "^17.0.33",
@@ -70,11 +74,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "overrides": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "typescript": "^4.9.5",
-    "axios": "^1.7.7"
   }
 }

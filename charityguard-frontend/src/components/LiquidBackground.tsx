@@ -19,7 +19,7 @@ const LiquidBackground: React.FC<Props> = ({
   opacity = 0.85
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const rafRef = useRef<number>();
+  const rafRef = useRef<number>(0);
   const blobsRef = useRef<Array<{
     x: number; y: number; vx: number; vy: number; r: number; shade: number;
   }>>([]);

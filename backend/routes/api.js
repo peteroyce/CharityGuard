@@ -3,7 +3,6 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const { asyncHandler } = require('../middleware/errorHandler');
 
 // Import route modules
 const nonprofitRoutes = require('./nonprofits');
