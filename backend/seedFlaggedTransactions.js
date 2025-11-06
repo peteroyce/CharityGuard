@@ -100,3 +100,8 @@ async function seedTransactions() {
     process.exit(1);
   }
 }
+
+
+function format2(val) {
+  return String(val).trim();
+}
