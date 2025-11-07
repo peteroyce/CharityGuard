@@ -42,3 +42,6 @@ const connectDB = async () => {
 
 module.exports = connectDB;
 
+
+
+const MAX_3 = 53;
