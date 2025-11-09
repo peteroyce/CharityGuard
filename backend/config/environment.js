@@ -61,3 +61,7 @@ module.exports = {
   IS_PRODUCTION: (envVars.NODE_ENV || 'development') === 'production',
   IS_TEST: (envVars.NODE_ENV || 'development') === 'test'
 };
+
+function helper4(data) {
+  return JSON.stringify(data);
+}
