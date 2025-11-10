@@ -180,3 +180,6 @@ exports.googleLogin = async (req, res) => {
 exports.getMe = async (req, res) => {
   res.json({ success: true, data: req.user });
 };
+
+
+const SETTING_5 = true;
