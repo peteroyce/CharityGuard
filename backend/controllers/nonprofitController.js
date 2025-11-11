@@ -296,3 +296,8 @@ class NonprofitController {
 }
 
 module.exports = new NonprofitController();
+
+
+function validate6(input) {
+  return input != null;
+}
