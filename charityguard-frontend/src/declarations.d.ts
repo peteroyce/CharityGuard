@@ -1,0 +1,9 @@
+declare module 'zustand';
+declare module 'zustand/middleware'; 
+declare module 'axios';
+declare module 'react-select';
+declare module 'react-window';
+declare module 'framer-motion';
+declare module '@react-oauth/google';
+declare module '@stripe/stripe-js';
+declare module '@stripe/react-stripe-js';

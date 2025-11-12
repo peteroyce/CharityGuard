@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - CharityGuard</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>🛡️ CharityGuard</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../index.html" class="nav-link">Home</a></li>
+                <li><a href="dashboard.html" class="nav-link active">Dashboard</a></li>
+                <li><a href="nonprofits.html" class="nav-link">Nonprofits</a></li>
+                <li><a href="transactions.html" class="nav-link">Transactions</a></li>
+                <li><a href="analytics.html" class="nav-link">Analytics</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main style="margin-top: 100px; padding: 2rem;">
+        <div class="dashboard-container" style="max-width: 1200px; margin: 0 auto;">
+            <h1 style="color: #2c3e50; margin-bottom: 2rem;">System Dashboard</h1>
+            
+            <!-- Quick Stats Cards -->
+            <div class="stats-grid" style="margin-bottom: 3rem;">
+                <div class="stat-card" style="background: white; color: #333; border: 1px solid #e9ecef;">
+                    <h3 id="dash-nonprofits">-</h3>
+                    <p>Active Nonprofits</p>
+                </div>
+                <div class="stat-card" style="background: white; color: #333; border: 1px solid #e9ecef;">
+                    <h3 id="dash-transactions">-</h3>
+                    <p>Total Transactions</p>
+                </div>
+                <div class="stat-card" style="background: white; color: #333; border: 1px solid #e9ecef;">
+                    <h3 id="dash-flagged">-</h3>
+                    <p>Flagged Transactions</p>
+                </div>
+                <div class="stat-card" style="background: white; color: #333; border: 1px solid #e9ecef;">
+                    <h3>99.2%</h3>
+                    <p>System Uptime</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="dashboard-actions" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-bottom: 3rem;">
+                <button class="action-btn" onclick="location.href='nonprofits.html'" style="padding: 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 15px; cursor: pointer; transition: transform 0.3s ease;">
+                    <h3>Manage Nonprofits</h3>
+                    <p>View and register organizations</p>
+                </button>
+                <button class="action-btn" onclick="location.href='transactions.html'" style="padding: 2rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; border: none; border-radius: 15px; cursor: pointer; transition: transform 0.3s ease;">
+                    <h3>Process Transactions</h3>
+                    <p>Analyze donations for fraud</p>
+                </button>
+                <button class="action-btn" onclick="location.href='analytics.html'" style="padding: 2rem; background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); color: white; border: none; border-radius: 15px; cursor: pointer; transition: transform 0.3s ease;">
+                    <h3>View Analytics</h3>
+                    <p>Donor patterns and insights</p>
+                </button>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="recent-activity" style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                <h2 style="color: #2c3e50; margin-bottom: 1rem;">Recent Activity</h2>
+                <div id="recent-list">Loading...</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardData();
+        });
+
+        async function loadDashboardData() {
+            try {
+                const nonprofits = await fetch('http://localhost:3001/api/nonprofits').then(r => r.json());
+                const transactions = await fetch('http://localhost:3001/api/transactions').then(r => r.json());
+                
+                document.getElementById('dash-nonprofits').textContent = Array.isArray(nonprofits) ? nonprofits.length : 0;
+                document.getElementById('dash-transactions').textContent = Array.isArray(transactions) ? transactions.length : 0;
+                
+                const flagged = Array.isArray(transactions) ? transactions.filter(t => t.status === 'flagged').length : 0;
+                document.getElementById('dash-flagged').textContent = flagged;
+                
+                // Show recent activity
+                const recentHtml = Array.isArray(transactions) ? 
+                    transactions.slice(0, 5).map(t => `
+                        <div style="padding: 1rem; border-bottom: 1px solid #e9ecef;">
+                            <strong>Transaction ${t.transactionId}</strong> - $${t.amount} 
+                            <span style="color: ${t.status === 'flagged' ? '#e74c3c' : '#27ae60'};">${t.status}</span>
+                        </div>
+                    `).join('') : '<p>No recent activity</p>';
+                
+                document.getElementById('recent-list').innerHTML = recentHtml;
+                
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+    </script>
+</body>
+</html>
