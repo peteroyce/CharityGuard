@@ -1,32 +1,51 @@
 const mongoose = require('mongoose');
 
-const TransactionSchema = new mongoose.Schema({
-  nonprofit: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Nonprofit',
+const transactionSchema = new mongoose.Schema({
+  transactionHash: {
+    type: String,
     required: true,
-    index: true
+    unique: true
   },
   nonprofitName: {
     type: String,
-    required: true,
-    trim: true
+    required: true
+  },
+  nonprofitEIN: {
+    type: String,
+    default: "Unknown"
+  },
+  donorAddress: {
+    type: String,
+    required: true
+  },
+  recipientAddress: {
+    type: String,
+    required: true
   },
   amount: {
     type: Number,
-    required: true,
-    min: 0.01
+    required: true
   },
-  donorWallet: {
-    type: String,
-    trim: true,
-    default: 'anonymous'
+  timestamp: {
+    type: Date,
+    default: Date.now
   },
-  description: {
+  blockNumber: {
+    type: Number,
+    default: 0
+  },
+  gasUsed: {
     type: String,
-    trim: true,
-    maxlength: 1000,
-    default: ''
+    default: "21000"
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'verified', 'flagged', 'blocked'],
+    default: 'pending'
+  },
+  isFraudulent: {
+    type: Boolean,
+    default: false
   },
   fraudScore: {
     type: Number,
@@ -34,28 +53,24 @@ const TransactionSchema = new mongoose.Schema({
     max: 1,
     default: 0
   },
-  status: {
-    type: String,
-    enum: ['completed', 'flagged', 'under_review', 'blocked'],
-    default: 'completed',
-    index: true
-  },
-  date: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
-  createdBy: {
-    type: String,
-    trim: true,
-    default: ''
+  riskFlags: [{
+    type: String
+  }],
+  aiAnalysis: {
+    patternMatch: String,
+    amountAnomaly: String,
+    walletAge: String,
+    transactionCount: String
   }
 }, {
   timestamps: true
 });
 
-// Compound indexes for optimized queries
-TransactionSchema.index({ nonprofit: 1, date: -1 });
-TransactionSchema.index({ fraudScore: -1, status: 1 });
+// Indexes for efficient querying
+transactionSchema.index({ status: 1, isFraudulent: 1, fraudScore: -1 });
+transactionSchema.index({ donorAddress: 1 });
+transactionSchema.index({ timestamp: -1 });
+transactionSchema.index({ nonprofitEIN: 1 });
 
-module.exports = mongoose.model('Transaction', TransactionSchema);
+module.exports = mongoose.model('Transaction', transactionSchema);
+

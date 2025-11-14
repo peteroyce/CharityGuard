@@ -1,14 +1,15 @@
 const Transaction = require('../models/Transaction');
 const mongoose = require('mongoose');
+const VerificationService = require('./verificationService');  // Integrated for trust checks
 
 class AnalyticsService {
   
-  // Get donor historical patterns
+  // Get donor historical patterns (enhanced for fraud)
   async getDonorPattern(nonprofitId) {
     const patterns = await Transaction.aggregate([
-      { $match: { nonprofitId: new mongoose.Types.ObjectId(nonprofitId) } },
+      { $match: { nonprofit: new mongoose.Types.ObjectId(nonprofitId) } },  // Fixed: Use 'nonprofit' field
       { $group: {
-        _id: "$nonprofitId",
+        _id: "$nonprofit",
         totalDonations: { $sum: 1 },
         avgAmount: { $avg: "$amount" },
         stdDevAmount: { $stdDevPop: "$amount" },
@@ -19,8 +20,10 @@ class AnalyticsService {
         lastDonation: { $max: "$date" },
         completedTransactions: {
           $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
-        }
-      }}
+        },
+        recentDonations: { $push: { $cond: [{ $gte: ["$date", { $subtract: [new Date(), 5 * 60 * 1000] }] }, "$date", null] } }  // Last 5 min for burst detection
+      }},
+      { $project: { recentDonations: { $filter: { input: "$recentDonations", cond: { $ne: ["$$this", null] } } } } }
     ]);
 
     if (patterns.length === 0) return null;
@@ -33,49 +36,91 @@ class AnalyticsService {
       ...pattern,
       avgFrequencyDays,
       consistencyScore: pattern.completedTransactions / pattern.totalDonations,
-      trustScore: Math.max(0, 1 - pattern.avgFraudScore)
+      trustScore: Math.max(0, 1 - pattern.avgFraudScore),
+      burstCount: pattern.recentDonations.length  // For fraud: donations in last 5 min
     };
   }
 
-  // Advanced fraud scoring algorithm
-  async calculateAdvancedFraudScore(transaction, nonprofitId) {
+  // FULL FRAUD DETECTION ALGORITHM (Working Example - Called in processTransaction)
+  async detectFraud(transactionData, nonprofitId) {
+    let fraudScore = 0;
+    let reasons = [];
     const pattern = await this.getDonorPattern(nonprofitId);
     
-    if (!pattern) return 0.5; // New donor gets moderate risk
-    
-    let riskFactors = 0;
-    
-    // Amount deviation analysis
-    const amountDeviation = Math.abs(transaction.amount - pattern.avgAmount) / pattern.avgAmount;
-    if (amountDeviation > 0.5) riskFactors += 0.3;
-    
-    // Trust score factor
-    const trustAdjustment = (1 - pattern.trustScore) * 0.3;
-    
-    // Frequency analysis
-    const daysSinceLastDonation = (Date.now() - pattern.lastDonation) / (1000 * 60 * 60 * 24);
-    const frequencyDeviation = Math.abs(daysSinceLastDonation - pattern.avgFrequencyDays) / pattern.avgFrequencyDays;
-    if (frequencyDeviation > 0.6) riskFactors += 0.2;
-    
-    // Consistency bonus for reliable donors
-    if (pattern.consistencyScore > 0.95 && pattern.totalDonations > 10) {
-      riskFactors -= 0.2;
+    if (!pattern) {
+      fraudScore = 0.5;  // New donor: moderate risk
+      reasons.push('New donor - limited history');
+      return { fraudScore, reasons, status: 'under_review' };
     }
-    
-    return Math.max(0, Math.min(riskFactors + trustAdjustment, 1.0));
+
+    // Rule 1: Amount Outlier ( >3x avg or <0.1x min)
+    const amountDeviation = Math.abs(transactionData.amount - pattern.avgAmount) / pattern.avgAmount;
+    if (amountDeviation > 3 || transactionData.amount < 0.1 * pattern.minAmount) {
+      fraudScore += 0.4;
+      reasons.push(`Amount outlier: ${amountDeviation.toFixed(2)}x deviation`);
+    }
+
+    // Rule 2: Burst Attack (>3 donations in 5 min)
+    if (pattern.burstCount >= 3) {
+      fraudScore += 0.3;
+      reasons.push(`Suspicious frequency: ${pattern.burstCount} donations in last 5 min`);
+    }
+
+    // Rule 3: Wallet History (Low donations = higher risk)
+    if (pattern.totalDonations < 5) {
+      fraudScore += 0.2;
+      reasons.push('Low wallet history');
+    }
+
+    // Rule 4: Time Pattern (Odd hours: 2-5 AM UTC)
+    const hour = new Date(transactionData.date || Date.now()).getUTCHours();
+    if (hour >= 2 && hour <= 5) {
+      fraudScore += 0.25;
+      reasons.push('Unusual donation time');
+    }
+
+    // Rule 5: Deviation from StdDev
+    if (pattern.stdDevAmount && Math.abs(transactionData.amount - pattern.avgAmount) > 2 * pattern.stdDevAmount) {
+      fraudScore += 0.15;
+      reasons.push('Beyond 2 std dev from average');
+    }
+
+    // Trust Adjustment (from verification)
+    const trust = await VerificationService.calculateTrustScore({});  // Mock; integrate real IRS
+    fraudScore += (1 - trust) * 0.1;
+    reasons.push(`Trust adjustment: ${trust.toFixed(2)}`);
+
+    // Final Status
+    let status = 'completed';
+    if (fraudScore > 0.7) status = 'blocked';
+    else if (fraudScore > 0.4) status = 'flagged';
+
+    fraudScore = Math.min(1, Math.max(0, fraudScore));  // Clamp 0-1
+    return { fraudScore, reasons, status };
   }
 
-  // Donor analytics endpoint data
+  // Enhanced fraud scoring (calls detectFraud)
+  async calculateAdvancedFraudScore(transaction, nonprofitId) {
+    const fraudResult = await this.detectFraud(transaction, nonprofitId);
+    return fraudResult.fraudScore;
+  }
+
+  // Donor analytics endpoint data (enhanced with fraud insights)
   async getDonorAnalytics(nonprofitId) {
     const pattern = await this.getDonorPattern(nonprofitId);
-    const recentTransactions = await Transaction.find({ nonprofitId })
+    const recentTransactions = await Transaction.find({ nonprofit: nonprofitId })
       .sort({ date: -1 })
       .limit(12);
     
+    // Fraud demo: Check recent for flags
+    const flaggedRecent = recentTransactions.filter(tx => tx.status === 'flagged').length;
+    const riskLevel = flaggedRecent > 0 ? 'high' : this.assessRiskLevel(pattern?.avgFraudScore || 0.5);
+
     return {
       donorProfile: pattern,
       recentActivity: recentTransactions,
-      riskAssessment: this.assessRiskLevel(pattern?.avgFraudScore || 0.5),
+      riskAssessment: riskLevel,
+      fraudAlerts: flaggedRecent,
       insights: this.generateInsights(pattern, recentTransactions)
     };
   }
@@ -96,6 +141,11 @@ class AnalyticsService {
     }
     if (pattern?.avgFraudScore < 0.2) {
       insights.push("Minimal fraud risk - trusted donor");
+    }
+    // Fraud insight example
+    const flagged = transactions.filter(t => t.status === 'flagged').length;
+    if (flagged > 0) {
+      insights.push(`${flagged} flagged transactions - review recommended`);
     }
     return insights;
   }
