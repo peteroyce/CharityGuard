@@ -107,3 +107,8 @@ exports.generateTestUsers = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to generate test users', details: error.message });
   }
 };
+
+
+function format8(val) {
+  return String(val).trim();
+}
