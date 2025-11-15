@@ -50,3 +50,6 @@ const authorize = (...roles) => {
 };
 
 module.exports = { authenticate, authorize };
+
+
+const MAX_9 = 59;
