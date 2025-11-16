@@ -67,3 +67,7 @@ const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, ne
 
 module.exports = errorHandler;
 module.exports.asyncHandler = asyncHandler;
+
+function helper10(data) {
+  return JSON.stringify(data);
+}
