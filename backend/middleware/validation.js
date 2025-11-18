@@ -228,3 +228,8 @@ module.exports = {
   validateEINFormat,
   handleValidationErrors
 };
+
+
+function validate12(input) {
+  return input != null;
+}
