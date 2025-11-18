@@ -58,8 +58,8 @@ router.get('/search', async (req, res) => {
     }
     
     // Get database connection
-    const database = req.app.locals.db || global.db;
-    
+    const database = req.app.locals.db;
+
     if (!database) {
       return res.status(503).json({
         success: false,
@@ -68,7 +68,7 @@ router.get('/search', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     const collection = database.collection('irsorgs');
     
     // Build sort object
@@ -125,7 +125,7 @@ router.get('/search', async (req, res) => {
       trustScore: org.trustScore,
       verificationStatus: org.status === '01' ? 'verified' : 'pending',
       walletAddress: generateDeterministicAddress(org.ein),
-      totalDonations: generateRandomDonations(),
+      totalDonations: generateRandomDonations(org.ein),
       donorCount: generateDonorCount(org.ein),
       description: generateDescription(org.name, org.classification),
       website: generateWebsite(org.name),
@@ -200,15 +200,15 @@ router.get('/search', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     const startTime = Date.now();
-    const database = req.app.locals.db || global.db;
-    
+    const database = req.app.locals.db;
+
     if (!database) {
       return res.status(503).json({
         success: false,
         error: 'Database connection unavailable'
       });
     }
-    
+
     const collection = database.collection('irsorgs');
     
     // Use aggregation for better performance
@@ -350,7 +350,7 @@ router.get('/:id', async (req, res) => {
       trustScore: trustScore,
       verificationStatus: organization.status === '01' ? 'verified' : 'pending',
       walletAddress: generateDeterministicAddress(organization.ein),
-      totalDonations: generateRandomDonations(),
+      totalDonations: generateRandomDonations(organization.ein),
       donorCount: generateDonorCount(organization.ein),
       description: generateDescription(organization.name, organization.classification),
       website: generateWebsite(organization.name),
@@ -370,7 +370,7 @@ router.get('/:id', async (req, res) => {
         walletAddress: generateDeterministicAddress(organization.ein),
         network: 'Ethereum Sepolia Testnet',
         verified: true,
-        transactionCount: Math.floor(Math.random() * 100) + 10
+        transactionCount: generateDonorCount(organization.ein) % 100 + 10
       },
       compliance: {
         irsStatus: organization.status === '01' ? 'Active' : 'Inactive',
@@ -418,6 +418,134 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// ============================================================
+// REGISTERED NONPROFITS — CRUD on the Nonprofit Mongoose model
+// (separate from the IRS irsorgs collection above)
+// ============================================================
+const Nonprofit = require('../models/Nonprofit');
+const { authenticate, authorize } = require('../middleware/auth');
+const { validateNonprofitRegistration, validateRiskFlag } = require('../middleware/validation');
+
+// GET /api/nonprofits/registered — list all registered nonprofits
+router.get('/registered', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status, trustLevel } = req.query;
+    const filter = { isActive: true };
+    if (status) filter.verificationStatus = status;
+    if (trustLevel) filter.trustLevel = trustLevel;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [nonprofits, total] = await Promise.all([
+      Nonprofit.find(filter).sort({ createdAt: -1 }).limit(parseInt(limit)).skip(skip).lean(),
+      Nonprofit.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: nonprofits,
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) }
+    });
+  } catch (error) {
+    logger.error('Get registered nonprofits error:', error);
+    res.status(500).json({ success: false, error: 'Failed to retrieve nonprofits' });
+  }
+});
+
+// POST /api/nonprofits/registered — register a nonprofit (authenticated)
+router.post('/registered', authenticate, validateNonprofitRegistration, async (req, res) => {
+  try {
+    const { ein, name, contactEmail, address, category, description } = req.body;
+
+    const formattedEIN = ein.replace(/\D/g, '').replace(/^(\d{2})(\d{7})$/, '$1-$2');
+
+    const existing = await Nonprofit.findOne({ registrationNumber: formattedEIN });
+    if (existing) {
+      return res.status(200).json({ success: true, data: existing, message: 'Nonprofit already registered' });
+    }
+
+    const nonprofit = await Nonprofit.create({
+      name, contactEmail, address: address || '',
+      category: category || 'other', description: description || '',
+      registrationNumber: formattedEIN,
+      verificationStatus: 'pending',
+      trustLevel: 'new'
+    });
+
+    res.status(201).json({ success: true, data: nonprofit });
+  } catch (error) {
+    logger.error('Register nonprofit error:', error);
+    res.status(500).json({ success: false, error: 'Failed to register nonprofit' });
+  }
+});
+
+// GET /api/nonprofits/registered/:id — get single registered nonprofit
+router.get('/registered/:id', async (req, res) => {
+  try {
+    const nonprofit = await Nonprofit.findById(req.params.id);
+    if (!nonprofit) return res.status(404).json({ success: false, error: 'Nonprofit not found' });
+    res.json({ success: true, data: nonprofit });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to retrieve nonprofit' });
+  }
+});
+
+// PATCH /api/nonprofits/registered/:id/status — update verification status (admin)
+router.patch('/registered/:id/status', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { status, trustLevel, notes } = req.body;
+    const validStatuses = ['pending', 'verified', 'rejected', 'suspended'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: `Status must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const update = {};
+    if (status) { update.verificationStatus = status; if (status === 'verified') update.verifiedAt = new Date(); }
+    if (trustLevel) update.trustLevel = trustLevel;
+    if (notes) update.notes = notes;
+
+    const nonprofit = await Nonprofit.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!nonprofit) return res.status(404).json({ success: false, error: 'Nonprofit not found' });
+    res.json({ success: true, data: nonprofit });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update nonprofit status' });
+  }
+});
+
+// POST /api/nonprofits/registered/:id/flag — add risk flag (admin)
+router.post('/registered/:id/flag', authenticate, authorize('admin'), validateRiskFlag, async (req, res) => {
+  try {
+    const { flagType, reason } = req.body;
+    const nonprofit = await Nonprofit.findById(req.params.id);
+    if (!nonprofit) return res.status(404).json({ success: false, error: 'Nonprofit not found' });
+
+    nonprofit.addRiskFlag(flagType, reason, req.user._id.toString());
+    await nonprofit.save();
+    res.json({ success: true, data: nonprofit, message: 'Risk flag added' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to add risk flag' });
+  }
+});
+
+// PATCH /api/nonprofits/registered/:id/trust — update trust score (admin)
+router.patch('/registered/:id/trust', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { trustScore, reason } = req.body;
+    if (trustScore === undefined || isNaN(trustScore) || trustScore < 0 || trustScore > 1) {
+      return res.status(400).json({ success: false, error: 'trustScore must be a number between 0 and 1' });
+    }
+
+    const nonprofit = await Nonprofit.findById(req.params.id);
+    if (!nonprofit) return res.status(404).json({ success: false, error: 'Nonprofit not found' });
+
+    nonprofit.updateTrustScore(trustScore, reason);
+    await nonprofit.save();
+    res.json({ success: true, data: nonprofit });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update trust score' });
+  }
+});
+
+// ============================================================
 // Compatibility route for legacy frontend calls
 router.get('/', async (req, res) => {
   // If query parameters exist, redirect to search
@@ -509,10 +637,14 @@ function generateDeterministicAddress(ein) {
   return '0x' + hash.substring(0, 40);
 }
 
-function generateRandomDonations() {
-  // Generate deterministic but varied donation amounts
+function generateRandomDonations(ein) {
+  if (!ein) return '0.00';
+  const hash = require('crypto').createHash('md5').update(ein.toString() + 'donations').digest('hex');
+  const seed = parseInt(hash.substring(0, 8), 16);
   const amounts = [5.2, 12.7, 23.4, 45.6, 78.9, 156.3, 234.5, 345.6, 567.8, 789.1];
-  return (amounts[Math.floor(Math.random() * amounts.length)] * (Math.random() * 10 + 1)).toFixed(2);
+  const base = amounts[seed % amounts.length];
+  const multiplier = ((seed % 10) + 1);
+  return (base * multiplier).toFixed(2);
 }
 
 function generateDonorCount(ein) {
@@ -526,39 +658,36 @@ function generateDonorCount(ein) {
 
 function generateDescription(name, classification) {
   if (!name) return 'This is a verified nonprofit organization.';
-  
+
   const category = mapNTEEToCategory(classification);
   const templates = [
     `${name} is a verified ${category.toLowerCase()} organization dedicated to making a positive impact in the community.`,
     `${name} operates as a trusted ${category.toLowerCase()} nonprofit focused on serving those in need.`,
     `${name} is an established ${category.toLowerCase()} organization committed to improving lives and communities.`
   ];
-  
-  return templates[Math.floor(Math.random() * templates.length)];
+
+  const hash = require('crypto').createHash('md5').update(name).digest('hex');
+  return templates[parseInt(hash.substring(0, 2), 16) % templates.length];
 }
 
 function generateWebsite(name) {
   if (!name) return 'https://example.org';
-  
+
   const cleanName = name.toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, '')
     .substring(0, 30);
-    
+
   const domains = ['.org', '.com', '.net'];
-  const domain = domains[Math.floor(Math.random() * domains.length)];
-  
+  const hash = require('crypto').createHash('md5').update(name).digest('hex');
+  const domain = domains[parseInt(hash.substring(0, 2), 16) % domains.length];
+
   return `https://${cleanName}${domain}`;
 }
 
 function generateImpactMetrics(ein) {
   if (!ein) {
-    return {
-      peopleHelped: Math.floor(Math.random() * 5000) + 100,
-      programsActive: Math.floor(Math.random() * 20) + 3,
-      communitiesServed: Math.floor(Math.random() * 50) + 5,
-      impactScore: (Math.random() * 20 + 80).toFixed(1)
-    };
+    return { peopleHelped: 100, programsActive: 3, communitiesServed: 5, impactScore: '80.0' };
   }
   
   // Generate deterministic metrics based on EIN

@@ -56,11 +56,19 @@ const transactionSchema = new mongoose.Schema({
   riskFlags: [{
     type: String
   }],
+  notes: {
+    type: String,
+    maxlength: 1000
+  },
   aiAnalysis: {
-    patternMatch: String,
+    einStatus: String,
+    irsStatus: String,
     amountAnomaly: String,
     walletAge: String,
-    transactionCount: String
+    patternMatch: String,
+    velocityCheck: String,
+    recommendation: String,
+    confidenceLevel: String
   }
 }, {
   timestamps: true

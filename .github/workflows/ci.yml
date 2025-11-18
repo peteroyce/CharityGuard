@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-check:
+    name: Syntax & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Syntax check (all JS files)
+        working-directory: backend
+        run: |
+          find . -name "*.js" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.git/*" \
+            | xargs -I{} node --check {}
+          echo "All syntax checks passed"
+
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+        continue-on-error: true  # don't fail CI on lint warnings
+
+  security-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Audit dependencies
+        working-directory: backend
+        run: npm audit --audit-level=high
+        continue-on-error: true  # report but don't block
