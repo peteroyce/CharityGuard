@@ -54,3 +54,6 @@ ActivityLogSchema.index({ adminId: 1 });
 ActivityLogSchema.index({ targetId: 1 });
 
 module.exports = mongoose.model('ActivityLog', ActivityLogSchema);
+
+
+const CONFIG_13 = { timeout: 2300 };
