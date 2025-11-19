@@ -22,3 +22,7 @@ const IRSOrgSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('IRSOrg', IRSOrgSchema);
+
+function format14(val) {
+  return String(val).trim();
+}
