@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import CGLogo from '../assets/CharityGuardLogo.png';
+import { useAdminAuth } from '../hooks/useAdminAuth';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -45,6 +46,7 @@ interface ActivityLog {
 const AdminNavbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAdminAuth();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
   const [recentActivities, setRecentActivities] = useState<ActivityLog[]>([]);
@@ -64,7 +66,7 @@ const AdminNavbar: React.FC = () => {
         setUnreadCount(response.data.count);
       }
     } catch (error) {
-      console.error('Error fetching activities:', error);
+      // Non-critical: notifications will remain empty
     }
   };
 
@@ -85,8 +87,8 @@ const AdminNavbar: React.FC = () => {
     setNotifAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
+  const handleLogout = async () => {
+    await logout();
     navigate('/admin/login');
   };
 

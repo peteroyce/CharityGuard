@@ -72,7 +72,7 @@ export const Home: React.FC = () => {
             avatar: parsed.avatar || ''
           });
         } catch (e) {
-          console.error('Failed to load profile:', e);
+          // Non-critical: profile will show defaults
         }
       }
     }
@@ -81,40 +81,30 @@ export const Home: React.FC = () => {
   useEffect(() => {
     fetchBlockchainStats();
     fetchFlaggedTransactions();
-    const t = setInterval(() => {
-      const newFlagged = Math.random() > 0.85 ? (blockchainStats.flaggedDonations || 0) + 1 : blockchainStats.flaggedDonations;
-      setBlockchainStats(prev => ({
-        totalDonations: prev.totalDonations + Math.floor(Math.random() * 3),
-        totalAmount: (parseFloat(prev.totalAmount) + Math.random() * 0.1).toFixed(2),
-        flaggedDonations: newFlagged
-      }));
-      setApiStats(prev => ({
-        ...prev,
-        totalTransactions: prev.totalTransactions + Math.floor(Math.random() * 5),
-        totalAmount: prev.totalAmount + Math.floor(Math.random() * 1000),
-        flaggedTransactions: prev.flaggedTransactions + (Math.random() > 0.92 ? 1 : 0)
-      }));
-      setLastUpdated(new Date());
-      if (Math.random() > 0.85) fetchFlaggedTransactions();
-    }, 10000);
-    return () => clearInterval(t);
   }, []);
 
   const fetchBlockchainStats = async () => {
     try {
       const stats = await getTotalStats();
       if (stats) setBlockchainStats(stats as BlockchainStats);
-    } catch (e) {}
+    } catch (e) {
+      // Non-critical: stats will show defaults
+    }
   };
 
   const fetchFlaggedTransactions = async () => {
+    const apiUrl = process.env.REACT_APP_API_URL;
     try {
-      const response = await fetch('http://localhost:3001/api/transactions/flagged?limit=3');
+      const response = await fetch(`${apiUrl}/api/transactions/flagged?limit=3`, {
+        signal: AbortSignal.timeout(10000)
+      });
       if (response.ok) {
         const data = await response.json();
         setFlaggedDetails(data.data || []);
       }
-    } catch (e) {}
+    } catch (e) {
+      // Non-critical: stats will show defaults
+    }
   };
 
   const refreshStats = async () => {

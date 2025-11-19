@@ -59,8 +59,15 @@ interface Transaction {
   timestamp: string;
 }
 
+interface TransactionActivityLog {
+  action: string;
+  adminName: string;
+  timestamp: string;
+  details?: string;
+}
+
 interface TransactionDetails extends Transaction {
-  activityLogs: any[];
+  activityLogs: TransactionActivityLog[];
   analysis: {
     riskLevel: string;
     flagCount: number;
@@ -122,8 +129,7 @@ const AdminFlaggedTransactions: React.FC = () => {
       } else {
         toast.error('Failed to load transactions');
       }
-    } catch (err: any) {
-      console.error('Error fetching transactions:', err);
+    } catch (err: unknown) {
       toast.error('Failed to fetch transactions');
     } finally {
       setLoading(false);
@@ -205,7 +211,7 @@ const AdminFlaggedTransactions: React.FC = () => {
         setTxDetails(response.data.data);
       }
     } catch (err) {
-      console.error('Error fetching details:', err);
+      // Non-critical: details panel will remain empty
     } finally {
       setLoadingDetails(false);
     }
@@ -221,12 +227,11 @@ const AdminFlaggedTransactions: React.FC = () => {
         toast.success('CSV exported successfully!');
       }
     } catch (err) {
-      console.error('Error exporting:', err);
       toast.error('Failed to export CSV');
     }
   };
 
-  const convertToCSV = (data: any[]) => {
+  const convertToCSV = (data: Transaction[]) => {
     const headers = ['Transaction Hash', 'Donor', 'Nonprofit', 'Amount', 'Fraud Score', 'Status', 'Date'];
     const rows = data.map(tx => [
       tx.transactionHash,
@@ -753,7 +758,7 @@ const AdminFlaggedTransactions: React.FC = () => {
               </InputLabel>
               <Select
                 value={bulkActionType || ''}
-                onChange={(e) => setBulkActionType(e.target.value as any)}
+                onChange={(e) => setBulkActionType(e.target.value as 'cleared' | 'blocked' | 'under_review')}
                 sx={{
                   color: '#ffffff',
                   bgcolor: 'rgba(15, 23, 42, 0.8)',
@@ -929,7 +934,7 @@ const AdminFlaggedTransactions: React.FC = () => {
                       Activity Timeline ({txDetails.activityLogs.length})
                     </Typography>
                     <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
-                      {txDetails.activityLogs.map((log, idx) => (
+                      {txDetails.activityLogs.map((log: TransactionActivityLog, idx: number) => (
                         <Box 
                           key={idx}
                           className="fade-in"

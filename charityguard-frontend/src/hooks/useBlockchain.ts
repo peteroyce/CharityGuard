@@ -83,7 +83,7 @@ export const useBlockchain = () => {
       const ethereumProvider = await detectEthereumProvider();
       
       if (ethereumProvider && CONTRACT_ADDRESS) {
-        const ethersProvider = new ethers.BrowserProvider(ethereumProvider as any);
+        const ethersProvider = new ethers.BrowserProvider(ethereumProvider as Parameters<typeof ethers.BrowserProvider>[0]);
         setProvider(ethersProvider);
         
         const contractInstance = new ethers.Contract(
@@ -106,9 +106,8 @@ export const useBlockchain = () => {
       } else {
         setError('MetaMask not found or contract address not configured');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to initialize blockchain provider');
-      console.error('Blockchain initialization error:', err);
     }
   };
 
@@ -152,7 +151,7 @@ export const useBlockchain = () => {
           params: [{
             chainId: '0xaa36a7',
             chainName: 'Sepolia Testnet',
-            rpcUrls: ['https://sepolia.infura.io/v3/'],
+            rpcUrls: [`https://sepolia.infura.io/v3/${process.env.REACT_APP_INFURA_KEY}`],
             nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
             blockExplorerUrls: ['https://sepolia.etherscan.io/'],
           }],
@@ -206,7 +205,6 @@ export const useBlockchain = () => {
         totalAmount: ethers.formatEther(totalAmount)
       };
     } catch (error) {
-      console.error('Failed to get stats:', error);
       return null;
     }
   };

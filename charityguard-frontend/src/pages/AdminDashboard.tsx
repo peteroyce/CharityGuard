@@ -32,14 +32,36 @@ import EmptyState from '../components/EmptyState';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+interface RecentActivity {
+  adminName: string;
+  action: string;
+  details: string;
+  timestamp: string;
+}
+
+interface TransactionStats {
+  under_review?: number;
+  flagged?: number;
+  cleared?: number;
+  [key: string]: number | undefined;
+}
+
+interface UserStats {
+  total?: number;
+  active?: number;
+  suspended?: number;
+  banned?: number;
+  [key: string]: number | undefined;
+}
+
 interface DashboardStats {
   totalUsers: number;
   activeUsers: number;
   flaggedTransactions: number;
   clearedTransactions: number;
-  recentActivities: any[];
-  transactionStats: any;
-  userStats: any;
+  recentActivities: RecentActivity[];
+  transactionStats: TransactionStats;
+  userStats: UserStats;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -78,7 +100,7 @@ const AdminDashboard: React.FC = () => {
         userStats: users.data.stats || {}
       });
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+      // Non-critical: dashboard stats will show defaults
     } finally {
       setLoading(false);
     }

@@ -171,10 +171,10 @@ export const DonationPage: React.FC = () => {
       setCurrentStep(3);
       setConfirmationOpen(true);
       
-    } catch (error: any) {
-      console.error('Donation failed:', error);
+    } catch (error: unknown) {
       setCurrentStep(1);
-      alert('Donation failed: ' + (error.message || 'Unknown error'));
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      alert('Donation failed: ' + msg);
     } finally {
       setIsProcessing(false);
     }

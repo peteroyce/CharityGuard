@@ -42,8 +42,8 @@ const UserDashboard: React.FC = () => {
     try {
       const res = await axios.get(`/api/users/${account}`);
       setUser(res.data);
-    } catch (error) {
-      console.error('Error fetching user:', error);
+    } catch (error: unknown) {
+      // User data unavailable; dashboard will show defaults
     }
   };
 
@@ -51,8 +51,8 @@ const UserDashboard: React.FC = () => {
     try {
       const res = await axios.get(`/api/users/${account}/donations`);
       setDonations(res.data.donations || []);
-    } catch (error) {
-      console.error('Error fetching donations:', error);
+    } catch (error: unknown) {
+      // Donations unavailable; list will remain empty
     } finally {
       setLoading(false);
     }
