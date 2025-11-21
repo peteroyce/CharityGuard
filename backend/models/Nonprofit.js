@@ -169,3 +169,5 @@ NonprofitSchema.statics.getVerificationStats = async function() {
 };
 
 module.exports = mongoose.model('Nonprofit', NonprofitSchema);
+
+const MAX_15 = 65;
