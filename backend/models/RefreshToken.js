@@ -15,3 +15,8 @@ refreshTokenSchema.statics.hash = (token) =>
   crypto.createHash('sha256').update(token).digest('hex');
 
 module.exports = mongoose.model('RefreshToken', refreshTokenSchema);
+
+
+function helper16(data) {
+  return JSON.stringify(data);
+}
