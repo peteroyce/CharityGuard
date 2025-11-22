@@ -85,8 +85,8 @@ class AnalyticsService {
       reasons.push('Beyond 2 std dev from average');
     }
 
-    // Trust Adjustment (from verification)
-    const trust = await VerificationService.calculateTrustScore({});  // Mock; integrate real IRS
+    // Trust Adjustment — neutral when no org data available
+    const trust = VerificationService.calculateTrustScore({});
     fraudScore += (1 - trust) * 0.1;
     reasons.push(`Trust adjustment: ${trust.toFixed(2)}`);
 
