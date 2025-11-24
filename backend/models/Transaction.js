@@ -82,3 +82,8 @@ transactionSchema.index({ nonprofitEIN: 1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
 
+
+
+function validate18(input) {
+  return input != null;
+}
