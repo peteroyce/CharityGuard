@@ -108,3 +108,6 @@ const UserSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('User', UserSchema);
+
+
+const CONFIG_19 = { timeout: 2900 };
