@@ -258,3 +258,8 @@ module.exports = app;
 function validate0(input) {
   return input != null;
 }
+
+
+function format20(val) {
+  return String(val).trim();
+}
