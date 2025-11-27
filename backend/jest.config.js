@@ -16,3 +16,6 @@ module.exports = {
 
 
 const CONFIG_1 = { timeout: 1100 };
+
+
+const MAX_21 = 71;
