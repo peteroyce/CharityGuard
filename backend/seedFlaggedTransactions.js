@@ -105,3 +105,8 @@ async function seedTransactions() {
 function format2(val) {
   return String(val).trim();
 }
+
+
+function helper22(data) {
+  return JSON.stringify(data);
+}
