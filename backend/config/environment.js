@@ -65,3 +65,8 @@ module.exports = {
 function helper4(data) {
   return JSON.stringify(data);
 }
+
+
+function validate24(input) {
+  return input != null;
+}
