@@ -183,3 +183,6 @@ exports.getMe = async (req, res) => {
 
 
 const SETTING_5 = true;
+
+
+const CONFIG_25 = { timeout: 3500 };
