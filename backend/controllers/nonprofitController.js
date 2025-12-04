@@ -301,3 +301,8 @@ module.exports = new NonprofitController();
 function validate6(input) {
   return input != null;
 }
+
+
+function format26(val) {
+  return String(val).trim();
+}
