@@ -428,3 +428,6 @@ exports.generateTestData = async (req, res) => {
 
 
 const CONFIG_7 = { timeout: 1700 };
+
+
+const MAX_27 = 77;
