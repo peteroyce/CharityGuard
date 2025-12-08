@@ -10,7 +10,9 @@
     "test:watch": "jest --watch",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
-    "health-check": "curl http://localhost:3001/health"
+    "health-check": "curl http://localhost:3001/health",
+    "seed:admin": "node scripts/seed-admin.js",
+    "seed:test-data": "node scripts/seed-admin.js && curl -s -X GET http://localhost:3001/api/transactions/test-data/generate"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

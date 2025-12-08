@@ -41,7 +41,7 @@ module.exports = {
   
   MONGODB_URI: envVars.MONGODB_URI || 'mongodb://localhost:27017/charityguard',
   
-  JWT_SECRET: envVars.JWT_SECRET || 'your-secret-key-change-in-production',
+  JWT_SECRET: envVars.JWT_SECRET,
   JWT_EXPIRES_IN: envVars.JWT_EXPIRES_IN || '7d',
   
   GOOGLE_CLIENT_ID: envVars.GOOGLE_CLIENT_ID,
