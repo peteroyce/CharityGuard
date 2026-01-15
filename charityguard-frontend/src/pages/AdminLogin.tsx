@@ -4,17 +4,23 @@ import { Box, Card, CardContent, Typography, TextField, Button } from "@mui/mate
 import { useAdminAuth } from "../hooks/useAdminAuth";
 
 const AdminLogin: React.FC = () => {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { login } = useAdminAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(password)) {
+    setSubmitting(true);
+    setError(null);
+    const success = await login(email, password);
+    setSubmitting(false);
+    if (success) {
       navigate("/admin");
     } else {
-      setError("Invalid admin password.");
+      setError("Invalid credentials or insufficient permissions.");
     }
   };
 
@@ -25,7 +31,15 @@ const AdminLogin: React.FC = () => {
           <Typography variant="h4" mb={2}>Admin Login</Typography>
           <form onSubmit={handleSubmit}>
             <TextField
-              label="Admin Password"
+              label="Email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Password"
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
@@ -33,8 +47,8 @@ const AdminLogin: React.FC = () => {
               sx={{ mb: 2 }}
             />
             {error && <Typography color="error" fontSize={14}>{error}</Typography>}
-            <Button type="submit" variant="contained" color="primary" fullWidth>
-              Login
+            <Button type="submit" variant="contained" color="primary" fullWidth disabled={submitting}>
+              {submitting ? "Logging in..." : "Login"}
             </Button>
           </form>
         </CardContent>

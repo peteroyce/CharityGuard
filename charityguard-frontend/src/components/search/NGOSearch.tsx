@@ -130,7 +130,6 @@ export const NGOSearch: React.FC = () => {
         setNgos(enhancedNGOs);
       }
     } catch (error) {
-      console.error('Search error:', error);
       setNgos([]);
     } finally {
       setLoading(false);

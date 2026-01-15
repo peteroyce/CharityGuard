@@ -54,9 +54,23 @@ interface User {
   lastActive: string;
 }
 
+interface RecentDonation {
+  nonprofitName: string;
+  amount: number;
+  timestamp?: string;
+  date?: string;
+}
+
+interface ActivityLogEntry {
+  action: string;
+  adminName: string;
+  timestamp: string;
+  details?: string;
+}
+
 interface UserDetails extends User {
-  recentDonations: any[];
-  activityLogs: any[];
+  recentDonations: RecentDonation[];
+  activityLogs: ActivityLogEntry[];
 }
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -104,8 +118,7 @@ const AdminUsers: React.FC = () => {
       } else {
         toast.error('Failed to load users');
       }
-    } catch (err: any) {
-      console.error('Error fetching users:', err);
+    } catch (err: unknown) {
       toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
@@ -120,7 +133,6 @@ const AdminUsers: React.FC = () => {
         setUserDetails(response.data.data);
       }
     } catch (err) {
-      console.error('Error fetching user details:', err);
       toast.error('Failed to fetch user details');
     } finally {
       setLoadingDetails(false);
@@ -179,12 +191,11 @@ const AdminUsers: React.FC = () => {
         toast.success('CSV exported successfully!');
       }
     } catch (err) {
-      console.error('Error exporting:', err);
       toast.error('Failed to export CSV');
     }
   };
 
-  const convertToCSV = (data: any[]) => {
+  const convertToCSV = (data: User[]) => {
     const headers = ['Username', 'Email', 'Wallet', 'Status', 'Donations', 'Total Amount', 'Verified', 'Created'];
     const rows = data.map(user => [
       user.username,
@@ -782,7 +793,7 @@ const AdminUsers: React.FC = () => {
                       Recent Donations ({userDetails.recentDonations.length})
                     </Typography>
                     <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
-                      {userDetails.recentDonations.map((donation: any, idx: number) => (
+                      {userDetails.recentDonations.map((donation: RecentDonation, idx: number) => (
                         <Card 
                           key={idx}
                           className="hover-lift fade-in"
@@ -821,7 +832,7 @@ const AdminUsers: React.FC = () => {
                       Activity History ({userDetails.activityLogs.length})
                     </Typography>
                     <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
-                      {userDetails.activityLogs.map((log: any, idx: number) => (
+                      {userDetails.activityLogs.map((log: ActivityLogEntry, idx: number) => (
                         <Box 
                           key={idx}
                           className="fade-in"

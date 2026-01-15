@@ -42,10 +42,46 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const COLORS = ['#14b8a6', '#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6'];
 
+interface ActionStat {
+  _id: string;
+  count: number;
+}
+
+interface DailyStat {
+  _id: string;
+  count: number;
+}
+
+interface AdminStat {
+  _id: string;
+  count: number;
+}
+
+interface AnalyticsData {
+  actionStats: ActionStat[];
+  dailyStats: DailyStat[];
+  adminStats: AdminStat[];
+}
+
+interface ActionChartItem {
+  name: string;
+  count: number;
+}
+
+interface DailyChartItem {
+  date: string;
+  actions: number;
+}
+
+interface AdminChartItem {
+  name: string;
+  value: number;
+}
+
 const AdminAnalytics: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7');
-  const [statsData, setStatsData] = useState<any>(null);
+  const [statsData, setStatsData] = useState<AnalyticsData | null>(null);
 
   useEffect(() => {
     fetchAnalytics();
@@ -59,9 +95,8 @@ const AdminAnalytics: React.FC = () => {
       if (response.data.success) {
         setStatsData(response.data.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Failed to load analytics');
-      console.error('Error fetching analytics:', err);
     } finally {
       setLoading(false);
     }
@@ -88,22 +123,22 @@ const AdminAnalytics: React.FC = () => {
     );
   }
 
-  const actionChartData = statsData?.actionStats?.map((stat: any) => ({
+  const actionChartData: ActionChartItem[] = statsData?.actionStats?.map((stat: ActionStat) => ({
     name: stat._id.replace(/_/g, ' '),
     count: stat.count
   })) || [];
 
-  const dailyChartData = statsData?.dailyStats?.map((stat: any) => ({
+  const dailyChartData: DailyChartItem[] = statsData?.dailyStats?.map((stat: DailyStat) => ({
     date: new Date(stat._id).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     actions: stat.count
   })) || [];
 
-  const adminChartData = statsData?.adminStats?.map((stat: any) => ({
+  const adminChartData: AdminChartItem[] = statsData?.adminStats?.map((stat: AdminStat) => ({
     name: stat._id,
     value: stat.count
   })) || [];
 
-  const totalActions = actionChartData.reduce((sum: number, item: any) => sum + item.count, 0);
+  const totalActions = actionChartData.reduce((sum: number, item: ActionChartItem) => sum + item.count, 0);
 
   return (
     <Box className="page-transition fade-in" sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', py: 4 }}>
@@ -145,9 +180,9 @@ const AdminAnalytics: React.FC = () => {
         <Grid container spacing={3} className="stagger-children" sx={{ mb: 4 }}>
           {[
             { label: 'Total Actions', value: totalActions, color: '#14b8a6', icon: <TrendingUp /> },
-            { label: 'Blocked', value: actionChartData.find((d: any) => d.name.includes('block'))?.count || 0, color: '#ef4444', icon: <Flag /> },
-            { label: 'Cleared', value: actionChartData.find((d: any) => d.name.includes('clear'))?.count || 0, color: '#10b981', icon: <CheckCircle /> },
-            { label: 'User Actions', value: actionChartData.find((d: any) => d.name.includes('user'))?.count || 0, color: '#3b82f6', icon: <Person /> }
+            { label: 'Blocked', value: actionChartData.find((d: ActionChartItem) => d.name.includes('block'))?.count || 0, color: '#ef4444', icon: <Flag /> },
+            { label: 'Cleared', value: actionChartData.find((d: ActionChartItem) => d.name.includes('clear'))?.count || 0, color: '#10b981', icon: <CheckCircle /> },
+            { label: 'User Actions', value: actionChartData.find((d: ActionChartItem) => d.name.includes('user'))?.count || 0, color: '#3b82f6', icon: <Person /> }
           ].map((stat, idx) => (
             <Grid item xs={12} sm={6} md={3} key={idx}>
               <Card className="hover-lift" sx={{
@@ -234,13 +269,13 @@ const AdminAnalytics: React.FC = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }: { name: string; percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
                     animationDuration={1000}
                   >
-                    {adminChartData.map((entry: any, index: number) => (
+                    {adminChartData.map((entry: AdminChartItem, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>

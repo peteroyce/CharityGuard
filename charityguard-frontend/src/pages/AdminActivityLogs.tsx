@@ -25,6 +25,11 @@ import AnimatedCounter from '../components/AnimatedCounter';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 
+interface ActivityLogMetadata {
+  transactionHash?: string;
+  [key: string]: unknown;
+}
+
 interface ActivityLog {
   _id: string;
   adminId: string;
@@ -34,7 +39,7 @@ interface ActivityLog {
   targetId: string;
   details: string;
   timestamp: string;
-  metadata?: any;
+  metadata?: ActivityLogMetadata;
 }
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -44,7 +49,7 @@ const AdminActivityLogs: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
-  const [stats, setStats] = useState<any>({});
+  const [stats, setStats] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchLogs();
@@ -62,9 +67,8 @@ const AdminActivityLogs: React.FC = () => {
         setLogs(response.data.data || []);
         setStats(response.data.stats || {});
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Failed to load activity logs');
-      console.error('Error fetching logs:', err);
     } finally {
       setLoading(false);
     }
@@ -145,7 +149,7 @@ const AdminActivityLogs: React.FC = () => {
 
         {/* Stats Cards */}
         <Grid container spacing={3} className="stagger-children" sx={{ mb: 4 }}>
-          {Object.entries(stats).slice(0, 4).map(([action, count]: any, idx) => (
+          {Object.entries(stats).slice(0, 4).map(([action, count], idx) => (
             <Grid item xs={12} sm={6} md={3} key={idx}>
               <Card className="hover-lift" sx={{
                 background: `linear-gradient(135deg, ${getActionColor(action)}20, rgba(15, 23, 42, 0.95))`,

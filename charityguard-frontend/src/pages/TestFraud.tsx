@@ -9,10 +9,12 @@ export const TestFraud: React.FC = () => {
 
   const testFraudulent = async () => {
     setLoading(true);
+    const apiUrl = process.env.REACT_APP_API_URL;
     try {
-      const response = await fetch('http://localhost:3001/api/transactions', {
+      const response = await fetch(`${apiUrl}/api/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           transactionHash: `0xfraud${Date.now()}`,
           nonprofitName: "Red Cross Relief Foundation",
@@ -34,10 +36,12 @@ export const TestFraud: React.FC = () => {
 
   const testLegitimate = async () => {
     setLoading(true);
+    const apiUrl = process.env.REACT_APP_API_URL;
     try {
-      const response = await fetch('http://localhost:3001/api/transactions', {
+      const response = await fetch(`${apiUrl}/api/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           transactionHash: `0xlegit${Date.now()}`,
           nonprofitName: "UNICEF USA",

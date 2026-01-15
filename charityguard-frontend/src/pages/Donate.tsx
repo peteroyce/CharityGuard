@@ -164,7 +164,7 @@ export const Donate: React.FC = () => {
             }));
           }
         } catch (error) {
-          console.error('Error checking wallet connection:', error);
+          // Non-critical: wallet connection check failed, user can connect manually
         }
       }
     };
@@ -180,7 +180,6 @@ export const Donate: React.FC = () => {
         const balanceEth = balanceWei / 1e18;
         return balanceEth.toFixed(4);
       } catch (error) {
-        console.error('Error getting balance:', error);
         return '0';
       }
     };
@@ -210,11 +209,11 @@ export const Donate: React.FC = () => {
           error: '',
           step: 3
         }));
-      } catch (error: any) {
-        console.error('Wallet connection error:', error);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : '❌ Failed to connect wallet. Please try again.';
         setDonationState(prev => ({
           ...prev,
-          error: error.message || '❌ Failed to connect wallet. Please try again.'
+          error: msg
         }));
       }
     };
@@ -234,8 +233,6 @@ export const Donate: React.FC = () => {
     try {
       const amount = parseFloat(donationState.donationAmount);
       const amountWei = '0x' + Math.floor(amount * 1e18).toString(16);
-
-      console.log('🚀 Initiating donation transaction...');
 
       // STEP 1: Execute blockchain transaction
       const transactionHash = await window.ethereum.request({
@@ -259,20 +256,17 @@ export const Donate: React.FC = () => {
         throw error;
       });
 
-      console.log('📄 Transaction submitted:', transactionHash);
-
       // STEP 2: Wait for transaction confirmation
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       const newBalance = await getWalletBalance(donationState.walletAddress);
 
-      // STEP 3: 🔥🔥🔥 SEND TO BACKEND FOR FRAUD DETECTION 🔥🔥🔥
-      console.log('🕵️ Sending to backend for fraud analysis...');
-      
+      // STEP 3: SEND TO BACKEND FOR FRAUD DETECTION
       try {
-        const backendResponse = await fetch('http://localhost:3001/api/transactions', {
+        const backendResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
           body: JSON.stringify({
             transactionHash: transactionHash,
             nonprofitName: nonprofit.name,
@@ -286,7 +280,6 @@ export const Donate: React.FC = () => {
         });
 
         const fraudData = await backendResponse.json();
-        console.log('🔍 Fraud detection response:', fraudData);
 
         // Store backend response
         setDonationState(prev => ({
@@ -297,15 +290,11 @@ export const Donate: React.FC = () => {
 
         // Show alert if fraud detected
         if (fraudData.warning || fraudData.data?.isFraudulent) {
-          console.warn('⚠️ FRAUD DETECTED:', fraudData);
           alert(`⚠️ FRAUD ALERT!\n\nFraud Score: ${fraudData.fraudScore}\n\nRisk Flags:\n${fraudData.riskFlags?.join('\n- ')}\n\nThis transaction has been flagged and will appear on the admin dashboard.`);
-        } else {
-          console.log('✅ Transaction verified - Fraud Score:', fraudData.fraudScore);
         }
 
       } catch (backendError) {
-        console.error('Backend recording failed (non-blocking):', backendError);
-        // Continue even if backend fails
+        // Backend recording failed — continue since blockchain transaction succeeded
       }
 
       // STEP 4: Complete donation flow
@@ -320,13 +309,13 @@ export const Donate: React.FC = () => {
 
       setShowSuccessModal(true);
 
-    } catch (error: any) {
-      console.error('❌ Donation failed:', error);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Transaction failed. Please try again.';
       setDonationState(prev => ({
         ...prev,
         step: 3,
         isProcessing: false,
-        error: error.message || 'Transaction failed. Please try again.'
+        error: msg
       }));
     }
   };

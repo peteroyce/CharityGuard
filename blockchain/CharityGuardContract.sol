@@ -1,187 +1,238 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.19;
 
+/**
+ * @title CharityGuardDonations
+ * @dev Manages charitable donations with on-chain fraud score gating.
+ *      Fraud thresholds align with the CharityGuard backend (>= 65 = flagged).
+ *      Flagged donations are held in the contract until the owner verifies them.
+ */
 contract CharityGuardDonations {
-    // State variables
+
+    // ─── State ────────────────────────────────────────────────────────────────
+
     address public owner;
     uint256 public donationCounter;
     uint256 public totalDonationsAmount;
-    
-    // Structs
+
+    /// @dev Reentrancy guard
+    bool private _locked;
+
+    // Fraud score thresholds (out of 100, matching backend scoring)
+    uint256 public constant VERIFIED_THRESHOLD = 30;  // <= 30 → verified
+    uint256 public constant FLAGGED_THRESHOLD   = 65;  // >= 65 → flagged, funds held
+
+    // ─── Enums ────────────────────────────────────────────────────────────────
+
+    enum DonationStatus { PENDING, VERIFIED, FLAGGED }
+
+    // ─── Structs ──────────────────────────────────────────────────────────────
+
     struct Donation {
         uint256 id;
         address donor;
         address charity;
         uint256 amount;
-        string charityName;
-        string charityEIN;
+        string  charityName;
+        string  charityEIN;
         uint256 timestamp;
-        bool isVerified;
-        uint256 fraudScore; // Score out of 100 (0 = no fraud, 100 = high fraud)
-        string status; // "pending", "verified", "flagged"
+        bool    isVerified;
+        uint256 fraudScore;
+        DonationStatus status;
+        bool    fundsTransferred;
     }
-    
+
     struct Charity {
         address walletAddress;
-        string name;
-        string ein;
-        uint256 totalReceived;
-        uint256 donationCount;
-        bool isActive;
+        string  name;
+        string  ein;
+        uint256 totalReceived;   // only counts funds actually transferred
+        uint256 donationCount;   // only counts completed (transferred) donations
+        bool    isActive;
     }
-    
-    // Mappings
+
+    // ─── Mappings ─────────────────────────────────────────────────────────────
+
     mapping(uint256 => Donation) public donations;
     mapping(address => uint256[]) public donorHistory;
-    mapping(address => Charity) public registeredCharities;
-    mapping(string => address) public einToAddress;
-    
-    // Events
+    mapping(address => Charity)  public registeredCharities;
+    mapping(string  => address)  public einToAddress;
+
+    // ─── Events ───────────────────────────────────────────────────────────────
+
     event DonationMade(
         uint256 indexed donationId,
         address indexed donor,
         address indexed charity,
         uint256 amount,
-        string charityName,
-        string charityEIN,
+        string  charityName,
+        string  charityEIN,
         uint256 fraudScore,
-        string status
+        DonationStatus status
     );
-    
-    event CharityRegistered(
-        address indexed charityAddress,
-        string name,
-        string ein
+
+    event FundsTransferred(
+        uint256 indexed donationId,
+        address indexed charity,
+        uint256 amount
     );
-    
+
+    event DonationFlagged(
+        uint256 indexed donationId,
+        uint256 fraudScore
+    );
+
     event DonationVerified(
         uint256 indexed donationId,
         address indexed verifier
     );
-    
-    event DonationFlagged(
-        uint256 indexed donationId,
-        string reason
+
+    event CharityRegistered(
+        address indexed charityAddress,
+        string  name,
+        string  ein
     );
-    
-    // Modifiers
+
+    event CharityDeactivated(
+        address indexed charityAddress,
+        address indexed deactivatedBy
+    );
+
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
+    event EmergencyWithdrawal(
+        address indexed to,
+        uint256 amount
+    );
+
+    // ─── Modifiers ────────────────────────────────────────────────────────────
+
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only contract owner can call this function");
+        require(msg.sender == owner, "Caller is not the owner");
         _;
     }
-    
+
     modifier validDonationId(uint256 _donationId) {
         require(_donationId > 0 && _donationId <= donationCounter, "Invalid donation ID");
         _;
     }
-    
-    modifier registeredCharity(address _charity) {
-        require(registeredCharities[_charity].isActive, "Charity not registered or inactive");
+
+    modifier nonReentrant() {
+        require(!_locked, "Reentrant call");
+        _locked = true;
         _;
+        _locked = false;
     }
-    
-    // Constructor
+
+    // ─── Constructor ──────────────────────────────────────────────────────────
+
     constructor() {
         owner = msg.sender;
-        donationCounter = 0;
-        totalDonationsAmount = 0;
     }
-    
-    // Functions
-    
+
+    // ─── Charity Management ───────────────────────────────────────────────────
+
     /**
-     * @dev Register a new charity
-     * @param _charityAddress Ethereum address of the charity
-     * @param _name Name of the charity
-     * @param _ein Employer Identification Number
+     * @dev Register a charity. Only owner can register.
+     * @param _charityAddress Ethereum wallet of the charity
+     * @param _name           Human-readable name
+     * @param _ein            IRS Employer Identification Number
      */
     function registerCharity(
         address _charityAddress,
-        string memory _name,
-        string memory _ein
-    ) public onlyOwner {
-        require(_charityAddress != address(0), "Invalid charity address");
-        require(bytes(_name).length > 0, "Charity name cannot be empty");
-        require(bytes(_ein).length > 0, "EIN cannot be empty");
-        require(einToAddress[_ein] == address(0), "EIN already registered");
-        
+        string  memory _name,
+        string  memory _ein
+    ) external onlyOwner {
+        require(_charityAddress != address(0),           "Invalid charity address");
+        require(bytes(_name).length > 0,                 "Name cannot be empty");
+        require(bytes(_ein).length > 0,                  "EIN cannot be empty");
+        require(bytes(_ein).length <= 12,                "EIN too long");
+        require(einToAddress[_ein] == address(0),        "EIN already registered");
+        require(!registeredCharities[_charityAddress].isActive, "Address already registered");
+
         registeredCharities[_charityAddress] = Charity({
             walletAddress: _charityAddress,
-            name: _name,
-            ein: _ein,
+            name:          _name,
+            ein:           _ein,
             totalReceived: 0,
             donationCount: 0,
-            isActive: true
+            isActive:      true
         });
-        
+
         einToAddress[_ein] = _charityAddress;
-        
+
         emit CharityRegistered(_charityAddress, _name, _ein);
     }
-    
+
     /**
-     * @dev Make a donation to a registered charity
-     * @param _charity Address of the charity
-     * @param _charityName Name of the charity
-     * @param _charityEIN EIN of the charity
-     * @param _fraudScore Fraud score from 0-100
+     * @dev Deactivate a registered charity. Emits CharityDeactivated.
+     */
+    function deactivateCharity(address _charity) external onlyOwner {
+        require(registeredCharities[_charity].isActive, "Charity not active");
+        registeredCharities[_charity].isActive = false;
+        emit CharityDeactivated(_charity, msg.sender);
+    }
+
+    // ─── Donations ────────────────────────────────────────────────────────────
+
+    /**
+     * @dev Submit a donation. Charity must be registered and active.
+     *      Fraud score must match the EIN on record for that charity address.
+     *      Funds are transferred immediately unless fraudScore >= FLAGGED_THRESHOLD.
+     *
+     * @param _charity     Registered charity wallet address
+     * @param _charityName Display name (must match registration)
+     * @param _charityEIN  EIN — validated against einToAddress mapping
+     * @param _fraudScore  Score 0-100 provided by CharityGuard backend
      */
     function makeDonation(
         address _charity,
-        string memory _charityName,
-        string memory _charityEIN,
+        string  memory _charityName,
+        string  memory _charityEIN,
         uint256 _fraudScore
-    ) public payable {
-        require(msg.value > 0, "Donation amount must be greater than 0");
-        require(_charity != address(0), "Invalid charity address");
-        require(_fraudScore <= 100, "Fraud score must be between 0-100");
-        
+    ) external payable nonReentrant {
+        require(msg.value > 0,                                          "Donation must be > 0");
+        require(_charity != address(0),                                 "Invalid charity address");
+        require(_fraudScore <= 100,                                     "Fraud score out of range");
+        require(registeredCharities[_charity].isActive,                 "Charity not registered or inactive");
+        require(einToAddress[_charityEIN] == _charity,                  "EIN does not match charity address");
+
         donationCounter++;
-        
-        // Determine status based on fraud score
-        string memory status;
+
+        DonationStatus status;
         bool isVerified;
-        
-        if (_fraudScore <= 20) {
-            status = "verified";
+
+        if (_fraudScore <= VERIFIED_THRESHOLD) {
+            status     = DonationStatus.VERIFIED;
             isVerified = true;
-        } else if (_fraudScore <= 50) {
-            status = "pending";
+        } else if (_fraudScore < FLAGGED_THRESHOLD) {
+            status     = DonationStatus.PENDING;
             isVerified = false;
         } else {
-            status = "flagged";
+            status     = DonationStatus.FLAGGED;
             isVerified = false;
         }
-        
-        // Create donation record
+
         donations[donationCounter] = Donation({
-            id: donationCounter,
-            donor: msg.sender,
-            charity: _charity,
-            amount: msg.value,
-            charityName: _charityName,
-            charityEIN: _charityEIN,
-            timestamp: block.timestamp,
-            isVerified: isVerified,
-            fraudScore: _fraudScore,
-            status: status
+            id:               donationCounter,
+            donor:            msg.sender,
+            charity:          _charity,
+            amount:           msg.value,
+            charityName:      _charityName,
+            charityEIN:       _charityEIN,
+            timestamp:        block.timestamp,
+            isVerified:       isVerified,
+            fraudScore:       _fraudScore,
+            status:           status,
+            fundsTransferred: false
         });
-        
-        // Update mappings
+
         donorHistory[msg.sender].push(donationCounter);
         totalDonationsAmount += msg.value;
-        
-        // Update charity stats if registered
-        if (registeredCharities[_charity].isActive) {
-            registeredCharities[_charity].totalReceived += msg.value;
-            registeredCharities[_charity].donationCount++;
-        }
-        
-        // Transfer funds to charity (only if not flagged)
-        if (_fraudScore <= 70) {
-            payable(_charity).transfer(msg.value);
-        }
-        
+
         emit DonationMade(
             donationCounter,
             msg.sender,
@@ -192,118 +243,120 @@ contract CharityGuardDonations {
             _fraudScore,
             status
         );
-        
-        // Emit additional event if flagged
-        if (_fraudScore > 70) {
-            emit DonationFlagged(donationCounter, "High fraud score detected");
+
+        if (status != DonationStatus.FLAGGED) {
+            _transferToDonation(donationCounter);
+        } else {
+            emit DonationFlagged(donationCounter, _fraudScore);
         }
     }
-    
+
     /**
-     * @dev Manually verify a donation (owner only)
-     * @param _donationId ID of the donation to verify
+     * @dev Owner manually verifies a flagged donation and releases held funds.
      */
-    function verifyDonation(uint256 _donationId) 
-        public 
-        onlyOwner 
-        validDonationId(_donationId) 
+    function verifyDonation(uint256 _donationId)
+        external
+        onlyOwner
+        nonReentrant
+        validDonationId(_donationId)
     {
         Donation storage donation = donations[_donationId];
+        require(!donation.fundsTransferred,                     "Funds already transferred");
+        require(donation.status == DonationStatus.FLAGGED,      "Donation is not flagged");
+
         donation.isVerified = true;
-        donation.status = "verified";
-        
-        // Transfer funds if they were held due to fraud concerns
-        if (donation.fraudScore > 70) {
-            payable(donation.charity).transfer(donation.amount);
-        }
-        
+        donation.status     = DonationStatus.VERIFIED;
+
         emit DonationVerified(_donationId, msg.sender);
+
+        _transferToDonation(_donationId);
     }
-    
-    /**
-     * @dev Get donation details by ID
-     * @param _donationId ID of the donation
-     * @return Donation struct
-     */
-    function getDonation(uint256 _donationId) 
-        public 
-        view 
-        validDonationId(_donationId) 
-        returns (Donation memory) 
+
+    // ─── Views ────────────────────────────────────────────────────────────────
+
+    function getDonation(uint256 _donationId)
+        external
+        view
+        validDonationId(_donationId)
+        returns (Donation memory)
     {
         return donations[_donationId];
     }
-    
-    /**
-     * @dev Get all donation IDs for a specific donor
-     * @param _donor Address of the donor
-     * @return Array of donation IDs
-     */
-    function getDonorHistory(address _donor) 
-        public 
-        view 
-        returns (uint256[] memory) 
+
+    function getDonorHistory(address _donor)
+        external
+        view
+        returns (uint256[] memory)
     {
         return donorHistory[_donor];
     }
-    
-    /**
-     * @dev Get charity information
-     * @param _charity Address of the charity
-     * @return Charity struct
-     */
-    function getCharityInfo(address _charity) 
-        public 
-        view 
-        returns (Charity memory) 
+
+    function getCharityInfo(address _charity)
+        external
+        view
+        returns (Charity memory)
     {
         return registeredCharities[_charity];
     }
-    
-    /**
-     * @dev Get total number of donations
-     * @return Total donation count
-     */
-    function getTotalDonations() public view returns (uint256) {
+
+    function getTotalDonations() external view returns (uint256) {
         return donationCounter;
     }
-    
-    /**
-     * @dev Get total amount donated
-     * @return Total amount in wei
-     */
-    function getTotalAmount() public view returns (uint256) {
+
+    function getTotalAmount() external view returns (uint256) {
         return totalDonationsAmount;
     }
-    
-    /**
-     * @dev Emergency function to withdraw stuck funds (owner only)
-     * @param _amount Amount to withdraw
-     */
-    function emergencyWithdraw(uint256 _amount) public onlyOwner {
-        require(_amount <= address(this).balance, "Insufficient contract balance");
-        payable(owner).transfer(_amount);
+
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
     }
-    
+
+    // ─── Admin ────────────────────────────────────────────────────────────────
+
     /**
-     * @dev Change contract ownership
-     * @param _newOwner Address of the new owner
+     * @dev Transfer contract ownership.
      */
-    function transferOwnership(address _newOwner) public onlyOwner {
-        require(_newOwner != address(0), "Invalid new owner address");
+    function transferOwnership(address _newOwner) external onlyOwner {
+        require(_newOwner != address(0), "Invalid new owner");
+        emit OwnershipTransferred(owner, _newOwner);
         owner = _newOwner;
     }
-    
+
     /**
-     * @dev Deactivate a charity (owner only)
-     * @param _charity Address of the charity to deactivate
+     * @dev Emergency withdraw of stuck ETH (e.g. direct sends). Cannot
+     *      withdraw funds held for pending verifications — only the idle balance.
      */
-    function deactivateCharity(address _charity) public onlyOwner {
-        registeredCharities[_charity].isActive = false;
+    function emergencyWithdraw(uint256 _amount) external onlyOwner nonReentrant {
+        require(_amount <= address(this).balance, "Insufficient balance");
+        emit EmergencyWithdrawal(owner, _amount);
+        (bool success, ) = payable(owner).call{value: _amount}("");
+        require(success, "Transfer failed");
     }
-    
-    // Fallback function to receive ETH
-    receive() external payable {
-        totalDonationsAmount += msg.value;
+
+    // ─── Internal ─────────────────────────────────────────────────────────────
+
+    /**
+     * @dev Transfer held funds to the charity for a given donation.
+     *      Updates charity stats only on successful transfer.
+     *      Uses call{} instead of transfer() to handle contract recipients.
+     */
+    function _transferToDonation(uint256 _donationId) internal {
+        Donation storage donation = donations[_donationId];
+
+        donation.fundsTransferred = true;
+
+        // Update charity stats only when funds actually move
+        registeredCharities[donation.charity].totalReceived += donation.amount;
+        registeredCharities[donation.charity].donationCount++;
+
+        emit FundsTransferred(_donationId, donation.charity, donation.amount);
+
+        (bool success, ) = payable(donation.charity).call{value: donation.amount}("");
+        require(success, "ETH transfer to charity failed");
     }
+
+    // ─── Fallback ─────────────────────────────────────────────────────────────
+
+    /// @dev Accept direct ETH (e.g. accidental sends). Does NOT count as donation.
+    receive() external payable {}
 }

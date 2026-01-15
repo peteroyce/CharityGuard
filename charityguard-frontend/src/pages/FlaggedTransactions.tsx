@@ -123,9 +123,9 @@ const FlaggedTransactions: React.FC = () => {
       }
 
       setLastUpdated(new Date());
-    } catch (err: any) {
-      console.error('Error fetching flagged transactions:', err);
-      setError(err.message || 'Failed to fetch flagged transactions');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch flagged transactions';
+      setError(msg);
       setTransactions([]);
     } finally {
       setLoading(false);
