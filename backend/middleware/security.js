@@ -10,6 +10,7 @@ const createRateLimit = (windowMs, max, message) => {
   return rateLimit({
     windowMs,
     max,
+    skip: () => process.env.NODE_ENV === 'test',
     message: {
       success: false,
       error: message
