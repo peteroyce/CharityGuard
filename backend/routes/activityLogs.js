@@ -3,6 +3,11 @@ const router = express.Router();
 const ActivityLog = require('../models/ActivityLog');
 const { authenticate, authorize } = require('../middleware/auth');
 const logger = require('../utils/logger');
+const {
+  validatePagination,
+  validateActivityLogCreate,
+  validateActivityLogStats
+} = require('../middleware/validation');
 
 // All activity log routes require authentication
 router.use(authenticate);
@@ -68,7 +73,7 @@ router.get('/recent', async (req, res) => {
 });
 
 // Get activity statistics — any authenticated user
-router.get('/stats', async (req, res) => {
+router.get('/stats', validateActivityLogStats, async (req, res) => {
   try {
     const { days = 7 } = req.query;
     const startDate = new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000);
@@ -103,7 +108,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // Get all activity logs — admin only
-router.get('/', authorize('admin'), async (req, res) => {
+router.get('/', authorize('admin'), ...validatePagination(['timestamp', 'action', 'adminName']), async (req, res) => {
   try {
     const { page = 1, limit = 50, adminId, action, targetType } = req.query;
 
@@ -136,13 +141,9 @@ router.get('/', authorize('admin'), async (req, res) => {
 });
 
 // Create activity log entry — admin only
-router.post('/', authorize('admin'), async (req, res) => {
+router.post('/', authorize('admin'), validateActivityLogCreate, async (req, res) => {
   try {
     const { action, targetType, targetId, details, metadata } = req.body;
-
-    if (!action || !targetType || !targetId) {
-      return res.status(400).json({ success: false, error: 'action, targetType, and targetId are required' });
-    }
 
     const log = await ActivityLog.create({
       adminId: req.user._id.toString(),

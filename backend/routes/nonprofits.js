@@ -19,7 +19,7 @@ const searchLimiter = rateLimit({
 router.use('/search', searchLimiter);
 
 // Enhanced search with advanced filtering and caching
-router.get('/search', async (req, res) => {
+router.get('/search', validateSearchQuery, async (req, res) => {
   try {
     const startTime = Date.now();
     
@@ -424,10 +424,18 @@ router.get('/:id', async (req, res) => {
 // ============================================================
 const Nonprofit = require('../models/Nonprofit');
 const { authenticate, authorize } = require('../middleware/auth');
-const { validateNonprofitRegistration, validateRiskFlag } = require('../middleware/validation');
+const {
+  validateNonprofitRegistration,
+  validateRiskFlag,
+  validateObjectId,
+  validateRegisteredQuery,
+  validateNonprofitStatusUpdate,
+  validateTrustScoreUpdate,
+  validateSearchQuery
+} = require('../middleware/validation');
 
 // GET /api/nonprofits/registered — list all registered nonprofits
-router.get('/registered', async (req, res) => {
+router.get('/registered', validateRegisteredQuery, async (req, res) => {
   try {
     const { page = 1, limit = 20, status, trustLevel } = req.query;
     const filter = { isActive: true };
@@ -479,7 +487,7 @@ router.post('/registered', authenticate, validateNonprofitRegistration, async (r
 });
 
 // GET /api/nonprofits/registered/:id — get single registered nonprofit
-router.get('/registered/:id', async (req, res) => {
+router.get('/registered/:id', ...validateObjectId('id'), async (req, res) => {
   try {
     const nonprofit = await Nonprofit.findById(req.params.id);
     if (!nonprofit) return res.status(404).json({ success: false, error: 'Nonprofit not found' });
@@ -490,13 +498,9 @@ router.get('/registered/:id', async (req, res) => {
 });
 
 // PATCH /api/nonprofits/registered/:id/status — update verification status (admin)
-router.patch('/registered/:id/status', authenticate, authorize('admin'), async (req, res) => {
+router.patch('/registered/:id/status', authenticate, authorize('admin'), validateNonprofitStatusUpdate, async (req, res) => {
   try {
     const { status, trustLevel, notes } = req.body;
-    const validStatuses = ['pending', 'verified', 'rejected', 'suspended'];
-    if (status && !validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, error: `Status must be one of: ${validStatuses.join(', ')}` });
-    }
 
     const update = {};
     if (status) { update.verificationStatus = status; if (status === 'verified') update.verifiedAt = new Date(); }
@@ -512,7 +516,7 @@ router.patch('/registered/:id/status', authenticate, authorize('admin'), async (
 });
 
 // POST /api/nonprofits/registered/:id/flag — add risk flag (admin)
-router.post('/registered/:id/flag', authenticate, authorize('admin'), validateRiskFlag, async (req, res) => {
+router.post('/registered/:id/flag', authenticate, authorize('admin'), ...validateObjectId('id'), validateRiskFlag, async (req, res) => {
   try {
     const { flagType, reason } = req.body;
     const nonprofit = await Nonprofit.findById(req.params.id);
@@ -527,12 +531,9 @@ router.post('/registered/:id/flag', authenticate, authorize('admin'), validateRi
 });
 
 // PATCH /api/nonprofits/registered/:id/trust — update trust score (admin)
-router.patch('/registered/:id/trust', authenticate, authorize('admin'), async (req, res) => {
+router.patch('/registered/:id/trust', authenticate, authorize('admin'), validateTrustScoreUpdate, async (req, res) => {
   try {
     const { trustScore, reason } = req.body;
-    if (trustScore === undefined || isNaN(trustScore) || trustScore < 0 || trustScore > 1) {
-      return res.status(400).json({ success: false, error: 'trustScore must be a number between 0 and 1' });
-    }
 
     const nonprofit = await Nonprofit.findById(req.params.id);
     if (!nonprofit) return res.status(404).json({ success: false, error: 'Nonprofit not found' });

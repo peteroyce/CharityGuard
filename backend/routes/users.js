@@ -5,12 +5,23 @@ const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const ActivityLog = require('../models/ActivityLog');
 const { authenticate, authorize } = require('../middleware/auth');
+const {
+  validateObjectId,
+  validatePagination,
+  validateUserStatusUpdate,
+  validateUserNotes,
+  validateUserProfile,
+  validateWalletAddress,
+  validateEINParam,
+  validateExportQuery,
+  validateDonationQuery
+} = require('../middleware/validation');
 
 // Test data generation route — admin only
 router.get('/test-data/generate', authenticate, authorize('admin'), userController.generateTestUsers);
 
 // UNIFIED STATUS UPDATE ROUTE — admin only
-router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) => {
+router.patch('/:id/status', authenticate, authorize('admin'), validateUserStatusUpdate, async (req, res) => {
   try {
     const { id } = req.params;
     const { action, reason, adminId, adminName } = req.body;
@@ -63,7 +74,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
 });
 
 // Get user details — admin only
-router.get('/:id/details', authenticate, authorize('admin'), async (req, res) => {
+router.get('/:id/details', authenticate, authorize('admin'), ...validateObjectId('id'), async (req, res) => {
   try {
     const { id } = req.params;
     const user = await User.findById(id).select('-__v');
@@ -84,7 +95,7 @@ router.get('/:id/details', authenticate, authorize('admin'), async (req, res) =>
 });
 
 // GET all users — admin only
-router.get('/', authenticate, authorize('admin'), async (req, res) => {
+router.get('/', authenticate, authorize('admin'), ...validatePagination(['createdAt', 'email', 'username', 'accountStatus']), async (req, res) => {
   try {
     const { page = 1, limit = 100, search, status, sortBy = 'createdAt', order = 'desc' } = req.query;
 
@@ -131,7 +142,7 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 });
 
 // Export users — admin only
-router.get('/export', authenticate, authorize('admin'), async (req, res) => {
+router.get('/export', authenticate, authorize('admin'), validateExportQuery, async (req, res) => {
   try {
     const { status } = req.query;
     const query = status && status !== 'all' ? { accountStatus: status } : {};
@@ -147,7 +158,7 @@ router.get('/export', authenticate, authorize('admin'), async (req, res) => {
 });
 
 // Update user notes — admin only
-router.patch('/:userId/notes', authenticate, authorize('admin'), async (req, res) => {
+router.patch('/:userId/notes', authenticate, authorize('admin'), validateUserNotes, async (req, res) => {
   try {
     const { userId } = req.params;
     const { notes } = req.body;
@@ -165,7 +176,7 @@ router.patch('/:userId/notes', authenticate, authorize('admin'), async (req, res
 });
 
 // Get user by wallet address (public — auto-creates user on first visit)
-router.get('/wallet/:walletAddress', async (req, res) => {
+router.get('/wallet/:walletAddress', ...validateWalletAddress(), async (req, res) => {
   try {
     const { walletAddress } = req.params;
     let user = await User.findOne({ walletAddress });
@@ -189,7 +200,7 @@ router.get('/wallet/:walletAddress', async (req, res) => {
 });
 
 // Get user donations by wallet address (public)
-router.get('/wallet/:walletAddress/donations', async (req, res) => {
+router.get('/wallet/:walletAddress/donations', ...validateWalletAddress(), validateDonationQuery, async (req, res) => {
   try {
     const { walletAddress } = req.params;
     const { limit = 50, skip = 0 } = req.query;
@@ -206,7 +217,7 @@ router.get('/wallet/:walletAddress/donations', async (req, res) => {
 });
 
 // Update user profile by wallet address (public)
-router.put('/wallet/:walletAddress', async (req, res) => {
+router.put('/wallet/:walletAddress', ...validateWalletAddress(), validateUserProfile, async (req, res) => {
   try {
     const { walletAddress } = req.params;
     const { email, username } = req.body;
@@ -224,7 +235,7 @@ router.put('/wallet/:walletAddress', async (req, res) => {
 });
 
 // Add favorite nonprofit (public)
-router.post('/wallet/:walletAddress/favorites/:ein', async (req, res) => {
+router.post('/wallet/:walletAddress/favorites/:ein', ...validateWalletAddress(), ...validateEINParam, async (req, res) => {
   try {
     const { walletAddress, ein } = req.params;
 
@@ -241,7 +252,7 @@ router.post('/wallet/:walletAddress/favorites/:ein', async (req, res) => {
 });
 
 // Remove favorite nonprofit (public)
-router.delete('/wallet/:walletAddress/favorites/:ein', async (req, res) => {
+router.delete('/wallet/:walletAddress/favorites/:ein', ...validateWalletAddress(), ...validateEINParam, async (req, res) => {
   try {
     const { walletAddress, ein } = req.params;
 
